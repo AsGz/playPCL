@@ -10,3 +10,11 @@ brew install pcl --HEAD
 ```
 
 
+#build step
+
+```
+git clone https://github.com/AsGz/playPCL
+cd playPCL && mkdir build && cd build
+cmake ..
+make
+```
