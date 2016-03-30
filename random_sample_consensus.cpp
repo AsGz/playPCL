@@ -10,8 +10,20 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <boost/thread/thread.hpp>
 
+#include <pcl/io/vtk_lib_io.h>
+#include <pcl/io/auto_io.h>
 #include <pcl/filters/extract_indices.h>
 
+#include <pcl/surface/simplification_remove_unused_vertices.h>
+
+#include <pcl/surface/marching_cubes_hoppe.h>
+#include <pcl/surface/marching_cubes_rbf.h>
+
+#include <pcl/surface/poisson.h>
+
+#include <pcl/surface/organized_fast_mesh.h>
+
+#include <pcl/surface/convex_hull.h>
 
 typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> PointCloudT;
@@ -75,18 +87,33 @@ main(int argc, char** argv)
     }
   }
   */
+  
+  //load PointCloud 
+  /*
   if (pcl::io::loadPLYFile (argv[1], *cloud) < 0)  {
       std::cout << "Error loading point cloud " << argv[1] << std::endl << std::endl;
       return -1;
+  }*/
+
+  //load mesh
+  pcl::PolygonMesh mesh; 
+  if ( pcl::io::loadPolygonFile(argv[1], mesh) < 0 ) 
+  {
+      std::cout << "load mesh file " << argv[1] << " failed." << std::endl;
+      return -1;
   }
+
+  pcl::fromPCLPointCloud2(mesh.cloud, *cloud);
   std::vector<int> inliers;
 
+  std::cout << "befor random sample consensus:" << cloud->size() << std::endl;
   // created RandomSampleConsensus object and compute the appropriated model
   pcl::SampleConsensusModelSphere<pcl::PointXYZ>::Ptr
     model_s(new pcl::SampleConsensusModelSphere<pcl::PointXYZ> (cloud));
   pcl::SampleConsensusModelPlane<pcl::PointXYZ>::Ptr
     model_p (new pcl::SampleConsensusModelPlane<pcl::PointXYZ> (cloud));
   
+  /*
   if(argc >= 3)
   {
     pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p);
@@ -94,10 +121,18 @@ main(int argc, char** argv)
     ransac.computeModel();
     ransac.getInliers(inliers);
   }
-  else 
+  else*/ 
   {
     pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_s);
-    ransac.setDistanceThreshold (.01);
+    float threshold = 0.005;
+    if (argc > 4) 
+    {
+        std::string str = argv[4];
+        threshold = std::stof(str);
+    }
+    std::cout << "threshold is " << threshold << std::endl;
+    //点之间多少距离以内,算作inlier
+    ransac.setDistanceThreshold (threshold);
     ransac.computeModel();
     ransac.getInliers(inliers);
   }
@@ -112,6 +147,7 @@ main(int argc, char** argv)
   extract.setIndices (inliersPtr);
   extract.setNegative (true);
   extract.filter (*final);
+
  // creates the visualization object and adds either our orignial cloud or all of the inliers
   // depending on the command line arguments specified.
   //boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
@@ -121,7 +157,7 @@ main(int argc, char** argv)
   //  viewer = simpleVis(cloud);
   
   // Visualization
-  pcl::visualization::PCLVisualizer viewer ("sample demo");
+  pcl::visualization::PCLVisualizer viewer ("3D Viewer");
   // Create two verticaly separated viewports
   int v1 (0);
   int v2 (1);
@@ -135,11 +171,61 @@ main(int argc, char** argv)
   // Original point cloud is white
   pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_in_color_h (cloud, (int) 255 * txt_gray_lvl, (int) 255 * txt_gray_lvl,
                                                                              (int) 255 * txt_gray_lvl);
-  viewer.addPointCloud (cloud, cloud_in_color_h, "cloud_in_v1", v1);
+  if (argc >= 3)
+      viewer.addPointCloud (cloud, cloud_in_color_h, "cloud_in_v1", v1);
+  else
+    viewer.addPolygonMesh(mesh, "mesh0", v1);
+
+  //pcl::PolygonMesh mesh2 = mesh;
+  //pcl::surface::SimplificationRemoveUnusedVertices s;
+  //std::cout << "inliers size:" <<  inliers.size() << std::endl;
+  //mesh2.cloud.data.clear();
+  //std::cout << "final random sample consensus:" << final->size() << std::endl;
+  //pcl::toPCLPointCloud2(*final, mesh2.cloud);
+  //s.simplify(mesh, mesh2, inliers);
+  
+  pcl::PointCloud<pcl::PointXYZ> hull;
+  std::vector<pcl::Vertices> polygons;
+
+  pcl::ConvexHull<pcl::PointXYZ> chull;
+  chull.setInputCloud (final);
+  chull.reconstruct (hull, polygons);
+
+  pcl::PolygonMesh mesh2;
+  toPCLPointCloud2 (hull, mesh2.cloud);
+  mesh2.polygons = polygons;
+
+  /*
+  pcl::PointCloud<pcl::PointNormal>::Ptr xyz_cloud (new pcl::PointCloud<pcl::PointNormal> ());
+  pcl::fromPCLPointCloud2 (mesh2.cloud, *xyz_cloud);
+  std::cout << "after random sample consensus:" << xyz_cloud->size() << std::endl;
+
+  pcl::MarchingCubesHoppe<pcl::PointNormal>  mc;
+
+  mc.setIsoLevel (0.000);
+  mc.setGridResolution (50.0,50.0, 50.0);
+  mc.setPercentageExtendGrid (0.000);
+  mc.setInputCloud (xyz_cloud);
+
+  mc.reconstruct (mesh2);
+  */
+  /*
+  pcl::Poisson<pcl::PointNormal> poisson;
+  poisson.setDepth (8);
+  poisson.setSolverDivide (8);
+  poisson.setIsoDivide (8);
+  poisson.setPointWeight (4.0000);
+  poisson.setInputCloud (xyz_cloud);
+
+  poisson.reconstruct (mesh2);
+  */
 
   // Transformed point cloud is green
   pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_tr_color_h (final, 20, 180, 20);
-  viewer.addPointCloud (final, cloud_tr_color_h, "cloud_tr_v1", v2);
+  if (argc >= 3)
+    viewer.addPointCloud (final, cloud_tr_color_h, "cloud_tr_v1", v2);
+  else
+    viewer.addPolygonMesh(mesh2, "mesh1", v2);
 
   pcl::io::savePLYFileASCII("cut_result.ply", *final);
   while (!viewer.wasStopped ())

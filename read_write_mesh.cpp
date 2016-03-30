@@ -44,7 +44,7 @@ main(int argc, char** argv)
     } 
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor (0, 0, 0);
-    //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
     std::vector<int> filenames;
     filenames = pcl::console::parse_file_extension_argument  (argc, argv, ".obj");
     if ( filenames.size() > 0 )
@@ -69,7 +69,27 @@ main(int argc, char** argv)
             std::cout << "load mesh file " << argv[1] << " failed." << std::endl;
             return -1;
         }
-        viewer->addPolygonMesh(mesh,"meshes",0);
+    
+        //show the point cloud from mesh
+        if (argc > 3)
+        {
+            pcl::fromPCLPointCloud2(mesh.cloud, *cloud);
+            boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+            viewer->setBackgroundColor (0, 0, 0);
+            viewer->addPointCloud<pcl::PointXYZRGB> (cloud, "sample cloud");
+            viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+            viewer->initCameraParameters ();
+            while (!viewer->wasStopped ())
+            {
+                viewer->spinOnce (100);
+                boost::this_thread::sleep (boost::posix_time::microseconds (100000));            
+            }
+            return 0;
+        }
+        else
+        {  
+            viewer->addPolygonMesh(mesh,"meshes",0);
+        }   
     }
    
        
@@ -80,17 +100,6 @@ main(int argc, char** argv)
         viewer->spinOnce (100);
         boost::this_thread::sleep (boost::posix_time::microseconds (100000));
     }
-    /*
-    //show the point cloud from mesh
-    pcl::fromPCLPointCloud2(mesh.cloud, *cloud);
-    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
-    viewer = simpleVis(cloud);
-    while (!viewer->wasStopped ())
-    {
-        viewer->spinOnce (100);
-         boost::this_thread::sleep (boost::posix_time::microseconds (100000));            
-    }
-    */
-    //pcl::toPCLPointCloud2 
+        //pcl::toPCLPointCloud2 
     return 0;
 } 

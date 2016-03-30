@@ -7,6 +7,9 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/console/time.h>   // TicToc
 
+#include <pcl/io/auto_io.h>
+#include <pcl/io/vtk_lib_io.h>
+#include <pcl/registration/gicp.h>
 #include <pcl/registration/transformation_estimation_svd_scale.h>
 
 typedef pcl::PointXYZ PointT;
@@ -65,7 +68,7 @@ main (int argc,
 
   pcl::console::TicToc time;
   time.tic ();
-  if (pcl::io::loadPLYFile (argv[1], *cloud_in) < 0)
+  if (pcl::io::load (argv[1], *cloud_in) < 0)
   {
     PCL_ERROR ("Error loading cloud %s.\n", argv[1]);
     return (-1);
@@ -92,41 +95,42 @@ main (int argc,
   // Executing the transformation
   pcl::transformPointCloud (*cloud_in, *cloud_icp, transformation_matrix);
   */
- 
-  if ( pcl::io::loadPLYFile (argv[2], *cloud_icp) < 0 )
+  pcl::PolygonMesh mesh; 
+  if ( pcl::io::load(argv[2], mesh) < 0 ) 
   {
-    PCL_ERROR ("Error loading cloud %s.\n", argv[2]);
-    return (-1);
+      std::cout << "load mesh file " << argv[2] << " failed." << std::endl;
+      return -1;
   }
+
+  pcl::fromPCLPointCloud2(mesh.cloud, *cloud_icp);
 
   *cloud_tr = *cloud_icp;  // We backup cloud_icp into cloud_tr for later use
   // The Iterative Closest Point algorithm
-  time.tic ();
-  pcl::IterativeClosestPoint<PointT, PointT> icp;
-  icp.setMaximumIterations (iterations);
-  
-  //icp.setMaxCorrespondenceDistance(0.01);  
-  icp.setTransformationEpsilon(1e-10);  
-  icp.setEuclideanFitnessEpsilon(0.01); 
-  
-  icp.setInputSource (cloud_icp);
-  icp.setInputTarget (cloud_in);
   
   //add by qpzhang
   typedef pcl::registration::TransformationEstimationSVDScale <pcl::PointXYZ, pcl::PointXYZ> te;
   boost::shared_ptr<te> teSVDscale (new te);
-  icp.setTransformationEstimation (teSVDscale);
   //~
+  
+  time.tic ();
+  
+  pcl::IterativeClosestPoint<PointT, PointT> icp;
+  //pcl::GeneralizedIterativeClosestPoint<PointT, PointT> icp;
+  //pcl::IterativeClosestPointWithNormals<PointT, PointT> icp;
+  icp.setMaximumIterations (iterations);
+  
+  //icp.setMaxCorrespondenceDistance(0.01);  
+  icp.setTransformationEpsilon(1e-5);  
+  icp.setEuclideanFitnessEpsilon(0.02); 
+  
+  icp.setInputSource (cloud_icp);
+  icp.setInputTarget (cloud_in);
+   
+  //icp.setTransformationEstimation (teSVDscale);
   
   icp.align (*cloud_icp);
   icp.setMaximumIterations (1);  // We set this variable to 1 for the next time we will call .align () function
   std::cout << "Applied " << iterations << " ICP iteration(s) in " << time.toc () << " ms" << std::endl;
-
-  //第一次缩放之后,进行不缩放的对齐迭代50次
-  //pcl::IterativeClosestPoint<PointT, PointT> icp_2;
-  //icp_2.setMaximumIterations (50);
-  //icp_2.setInputSource (cloud_icp);
-  //icp_2.setInputTarget (cloud_in);
 
   /*
   pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
@@ -204,6 +208,7 @@ main (int argc,
   // Register keyboard callback :
   viewer.registerKeyboardCallback (&keyboardEventOccurred, (void*) NULL);
 
+  int ncount = 0;
   // Display the visualiser
   while (!viewer.wasStopped ())
   {
@@ -230,6 +235,10 @@ main (int argc,
         std::string iterations_cnt = "ICP iterations = " + ss.str ();
         viewer.updateText (iterations_cnt, 10, 60, 16, txt_gray_lvl, txt_gray_lvl, txt_gray_lvl, "iterations_cnt");
         viewer.updatePointCloud (cloud_icp, cloud_icp_color_h, "cloud_icp_v2");
+      
+        ncount++;
+        //TODO:这里先让模型对齐之后再进行缩放,不然会影响注册效果,原因不明
+        if (ncount > 20) icp.setTransformationEstimation (teSVDscale);
       }
       else
       {
@@ -238,8 +247,9 @@ main (int argc,
       }
     }
     next_iteration = false;
-
-    pcl::io::savePLYFileASCII("icp_result.ply", *cloud_icp);
+    
+    pcl::toPCLPointCloud2(*cloud_icp, mesh.cloud);
+    pcl::io::savePolygonFile("icp_result.ply", mesh, false);
   }
 
   return (0);

@@ -26,3 +26,11 @@ target_link_libraries (extract_indices ${PCL_LIBRARIES})
 #
 add_executable (read_write_mesh read_write_mesh.cpp)
 target_link_libraries (read_write_mesh ${PCL_LIBRARIES})
+
+#
+add_executable (greedy_projection greedy_projection.cpp)
+target_link_libraries (greedy_projection ${PCL_LIBRARIES})
+
+#
+add_executable (alignment_prerejective alignment_prerejective.cpp)
+target_link_libraries (alignment_prerejective ${PCL_LIBRARIES})
