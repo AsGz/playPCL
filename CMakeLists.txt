@@ -34,3 +34,11 @@ target_link_libraries (greedy_projection ${PCL_LIBRARIES})
 #
 add_executable (alignment_prerejective alignment_prerejective.cpp)
 target_link_libraries (alignment_prerejective ${PCL_LIBRARIES})
+
+#
+add_executable (pairwise_incremental_registration pairwise_incremental_registration.cpp)
+target_link_libraries (pairwise_incremental_registration ${PCL_LIBRARIES})
+
+#
+add_executable (statistical_removal statistical_removal.cpp)
+target_link_libraries (statistical_removal ${PCL_LIBRARIES})
